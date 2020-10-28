@@ -1,0 +1,186 @@
+---
+title: "Mapping"
+author: "Group 6: Ruxin Liu, Yu Du, Congyao Duan, Jiachen Feng, Chun Gao"
+date: "10/26/2020"
+output: pdf_document
+---
+
+# Set up:
+```{r, message=FALSE}
+library(tidyverse)
+library(drat)
+library(hurricaneexposuredata)
+library(usmap)
+library(ggplot2)
+addRepo("geanders")
+data("hurr_tracks")
+data("rain")
+```
+
+## For Floyd-1999
+```{r}
+# Create a sub-dataset for the storm Floyd-1999 with hurricane data
+Floyd_hurr <- hurr_tracks %>% 
+  filter(storm_id == "Floyd-1999")
+```
+
+```{r}
+# Create a sub-dataset for the storm Floyd-1999 with rain data
+Floyd_rain <- rain %>% 
+  filter(storm_id == "Floyd-1999")
+```
+
+
+```{r, message=FALSE}
+#head(Floyd_hurr)
+head(Floyd_rain)
+library(maps)
+# Since the rain data contains fips only, needs to convert this information into
+# longitude and latitude information 
+head(county.fips)
+# The county.fips data contains information for fips, but fips are integers
+Floyd_rain$fips <- as.integer(Floyd_rain$fips)
+# head(Floyd_rain)
+# Now, the fips in both tables are in a consistent format. 
+```
+
+```{r, message=FALSE}
+Floyd_rain <- Floyd_rain %>% 
+  group_by(fips) %>% 
+  summarize(precip = sum(precip), precip_max = sum(precip_max))
+```
+
+```{r, message=FALSE}
+# Add the county information into our rain data set
+Floyd_rain <- left_join(Floyd_rain, county.fips, by = "fips")
+# A new row polyname is added at the end, needs to seperate into two columns
+library(magrittr)
+Floyd_rain %<>% separate(polyname, c("county1", "county2"), sep = ",")
+# The Floyd_rain now contains the county information as well
+```
+
+```{r}
+# Check all counties showed in the rain data
+# unique(Floyd_rain$county1)
+counties_f <- c("alabama", "arkansas", "connecticut", "delaware", "district of columbia",
+                "florida","georgia", "illinois", "indiana","iowa", "kansas", "kentucky", 
+                "louisiana","maine", "maryland","massachusetts", "michigan", "mississippi",
+                "missouri","new hampshire", "new jersey", "new york", "north carolina", 
+                "ohio", "oklahoma", "pennsylvania", "rhode island", "south carolina",
+                "tennessee", "texas","vermont","virginia", "west virginia", "wisconsin")  
+# The map_data function provides longitude and latitude information for conuties
+# head(map_data("county"))
+counties_floyd <- map_data("county", counties_f)
+```
+
+```{r}
+# Rename the rain data set for consistency
+Floyd_rain <-Floyd_rain %>% 
+  rename(region = county1, subregion = county2)
+# Add the longitude and latitude information into our rain data set
+Floyd_rain <- left_join(counties_floyd, Floyd_rain,
+                          by = c("region", "subregion"))
+```
+
+
+```{r}
+# Create different range groups that will be showed on the map based on the 
+# precip level
+Floyd_rain <- Floyd_rain %>% 
+  mutate(range = cut(Floyd_rain$precip, 
+                     breaks = c(-0.1, 25, 50, 75, 100, 125, 150, 175, 200, 225)))
+Floyd_rain <- na.omit(Floyd_rain)
+```
+
+
+## For Allison-2001:
+
+```{r}
+# Similar steps for Allison-2001
+# Create a sub-dataset for the storm Allison-2001
+Allison_hurr <- hurr_tracks %>% 
+  filter(storm_id == "Allison-2001")
+# Create a sub-dataset for the storm Floyd-1999 with rain data
+Allison_rain <- rain %>% 
+  filter(storm_id == "Allison-2001")
+```
+
+```{r, message=FALSE}
+Allison_rain$fips <- as.integer(Allison_rain$fips)
+Allison_rain <- left_join(Allison_rain, county.fips, by = "fips")
+Allison_rain %<>% separate(polyname, c("county1", "county2"), sep = ",")
+```
+
+
+# Floyd -1999 map with ggplot2:
+
+```{r}
+#Floyd_ggplot <- 
+  ggplot() + geom_polygon(data = Floyd_rain, aes(x = long, y = lat, group = group, 
+                                                 fill = range), color = "white")+ 
+  geom_polygon( data=counties_floyd, aes(x=long, y=lat, group=group),
+                  color="black", fill="lightblue",  size = 0.2, alpha = 0.3) +
+  geom_path(aes(x = Floyd_hurr$longitude, y = Floyd_hurr$latitude), color = "red") +
+  scale_fill_brewer(palette="PuBu")
+
+```
+
+
+```{r}
+states <- plot_usmap("states", 
+                     color = "red",
+                     fill = alpha(0.01))
+counties_floyd <- plot_usmap(data = Floyd_rain, 
+                       values = "precip",
+                       color = "white",
+                       size = 0.1,
+                     include = c("TX","OK","KS","LA", "AR", 
+                       "MO", "IA","WI", "MI","IL","IN", 
+                       "OH", "KY", "TN", "AL", "MS",
+                       "FL", "GA", "SC", "NC", "VA",
+                       "WV", "MD", "DE", "PA", "NJ", 
+                       "NY", "CT", "RI", "MA", "VT","NH", "ME"), 
+           regions="counties") + 
+  theme(legend.position = "right")
+states
+counties_floyd
+```
+```{r, warning=FALSE, message=FALSE}
+# Adding all the hurricane information
+Floyd_l <- data.frame(lon = Floyd_hurr$longitude, lat = Floyd_hurr$latitude)
+
+transformed_floyd <- usmap_transform(Floyd_l)
+counties_floyd + 
+  geom_point(data = transformed_floyd, 
+             aes(x = lon.1, y = lat.1), 
+             color = "red",
+             size = 0.5)
+
+```
+
+# Allison-2001
+
+```{r}
+# Create a sub-dataset for the storm Allison-2001
+Allison_2001 <- rain %>% 
+  filter(storm_id == "Allison-2001")
+```
+
+```{r}
+library(maps) 
+MainStates <- map_data("state")
+ggplot() + 
+    geom_polygon( data = MainStates, aes(x = long, y = lat, group = group),
+                  color = "black", fill = "lightblue" )
+```
+
+```{r}
+AllCounty <- map_data("county")
+ggplot() + geom_polygon( data=AllCounty, aes(x=long, y=lat, group=group),
+                         color="darkblue", fill="lightblue", size = .1 ) +
+    
+    geom_polygon( data=MainStates, aes(x=long, y=lat, group=group),
+                  color="black", fill="lightblue",  size = 1, alpha = .3)
+```
+
+              
